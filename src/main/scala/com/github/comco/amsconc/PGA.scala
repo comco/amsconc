@@ -3,6 +3,12 @@ package com.github.comco.amsconc
 import scala.util.parsing.combinator._
 
 /**
+ * TODO:
+ * - pretty print
+ * - equivalence
+ * - normal forms
+ * - thread interpretation
+ * - dsl
  * @author comco
  */
 object PGA {
