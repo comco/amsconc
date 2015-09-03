@@ -10,42 +10,41 @@ class PGASpec extends FlatSpec with Matchers {
   import PGA._
 
   "An Instruction" should "parse" in {
-    def ParseInstruction(instruction: String) =
+    def parseInstruction(instruction: String) =
       Parsers.parse(Parsers.instruction, instruction).get
 
-    ParseInstruction("a") shouldEqual Instruction.Basic("a")
+    parseInstruction("a") shouldEqual Instruction.Basic("a")
 
-    ParseInstruction("!") shouldEqual Instruction.Termination
+    parseInstruction("!") shouldEqual Instruction.Termination
 
-    ParseInstruction("+a") shouldEqual Instruction.PositiveTest("a")
+    parseInstruction("+a") shouldEqual Instruction.PositiveTest("a")
 
-    ParseInstruction("-a") shouldEqual Instruction.NegativeTest("a")
+    parseInstruction("-a") shouldEqual Instruction.NegativeTest("a")
 
-    ParseInstruction("#0") shouldEqual Instruction.Jump(0)
+    parseInstruction("#0") shouldEqual Instruction.Jump(0)
   }
 
+  def parseProgram(program: String) =
+    Parsers.parse(Parsers.program, program).get
+
   "A Program" should "parse" in {
-
-    def ParseProgram(program: String) =
-      Parsers.parse(Parsers.program, program).get
-
-    ParseProgram("a") shouldEqual Program.Primitive(Instruction.Basic("a"))
-
     import Instruction._
     import Program._
+    
+    parseProgram("a") shouldEqual Primitive(Basic("a"))
 
-    ParseProgram("a;+b;-c") shouldEqual
+    parseProgram("a;+b;-c") shouldEqual
       Concatenation(Primitive(Basic("a")), Concatenation(
         Primitive(PositiveTest("b")), Primitive(NegativeTest("c"))))
 
-    ParseProgram("(#2;a);b") shouldEqual
+    parseProgram("(#2;a);b") shouldEqual
       Concatenation(Concatenation(Primitive(Jump(2)), Primitive(Basic("a"))),
         Primitive(Basic("b")))
 
-    ParseProgram("#0;#1*") shouldEqual
+    parseProgram("#0;#1*") shouldEqual
       Concatenation(Primitive(Jump(0)), Repetition(Primitive(Jump(1))))
 
-    ParseProgram("a;(+b;!;-c)*;d") shouldEqual
+    parseProgram("a;(+b;!;-c)*;d") shouldEqual
       Concatenation(Primitive(Basic("a")),
         Concatenation(
           Repetition(Concatenation(
@@ -55,34 +54,33 @@ class PGASpec extends FlatSpec with Matchers {
               Primitive(NegativeTest("c"))))),
           Primitive(Basic("d"))))
 
-    ParseProgram("((a);(b)**)*") shouldEqual
+    parseProgram("((a);(b)**)*") shouldEqual
       Repetition(Concatenation(
         Primitive(Basic("a")),
         Repetition(Repetition(Primitive(Basic("b"))))))
   }
+  
+  it should "suppport pretty printing" in {
+    def expectCompacted(original: String, compacted: String) {
+      val program = parseProgram(original)
+      program.toCompactString shouldEqual compacted
+      parseProgram(compacted) shouldEqual program
+    }
+    
+    expectCompacted("a", "a")
+    
+    expectCompacted("((a))", "a")
+    
+    expectCompacted("+a;!", "+a;!")
+    
+    expectCompacted("a;(b;c)", "a;b;c")
+    
+    expectCompacted("(a;b);c", "(a;b);c")
+    
+    expectCompacted("((a);(b));(c);((d);(e))", "(a;b);c;d;e")
+    
+    expectCompacted("!;#2;#1*", "!;#2;#1*")
+    
+    expectCompacted("!**;!*;(a;-b)**", ("!**;!*;(a;-b)**"))
+  }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

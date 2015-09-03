@@ -4,7 +4,6 @@ import scala.util.parsing.combinator._
 
 /**
  * TODO:
- * - pretty print
  * - equivalence
  * - normal forms
  * - thread interpretation
@@ -14,7 +13,18 @@ import scala.util.parsing.combinator._
 object PGA {
   type Label = String
 
-  sealed class Instruction
+  sealed trait Instruction {
+    import Instruction._
+    
+    // Returns a string representation of this instruction.
+    lazy val toCompactString: String = this match {
+      case Basic(label) => label
+      case Termination => "!"
+      case PositiveTest(label) => "+" + label
+      case NegativeTest(label) => "-" + label
+      case Jump(steps) => "#" + steps
+    }
+  }
   object Instruction {
     case class Basic(label: Label) extends Instruction
     case object Termination extends Instruction
@@ -23,7 +33,29 @@ object PGA {
     case class Jump(steps: Int) extends Instruction
   }
 
-  sealed class Program
+  sealed trait Program {
+    import Program._
+    
+    // Returns a string representation of this program without too many
+    // parenthesis.
+    lazy val toCompactString: String = this match {
+      case Primitive(instruction) => instruction.toCompactString
+      case Concatenation(first, second) => {
+        val (f, s) = (first.toCompactString, second.toCompactString)
+        (first, second) match {
+          case (Concatenation(_, _), _) => s"($f);$s"
+          case _ => s"$f;$s"
+        }
+      }
+      case Repetition(body) => {
+        val b = body.toCompactString
+        body match {
+          case Primitive(_) | Repetition(_) => s"$b*"
+          case _ => s"($b)*"
+        }
+      }
+    }
+  }
   object Program {
     case class Primitive(instruction: Instruction) extends Program
 
