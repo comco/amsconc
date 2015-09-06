@@ -14,7 +14,7 @@ object PGA {
 
   sealed trait Instruction {
     import Instruction._
-    
+
     // Returns a string representation of this instruction.
     lazy val toCompactString: String = this match {
       case Basic(label) => label
@@ -24,6 +24,7 @@ object PGA {
       case Jump(steps) => "#" + steps
     }
   }
+
   object Instruction {
     case class Basic(label: Label) extends Instruction
     case object Termination extends Instruction
@@ -34,7 +35,7 @@ object PGA {
 
   sealed trait Program {
     import Program._
-    
+
     // Returns a string representation of this program without too many
     // parenthesis.
     lazy val toCompactString: String = this match {
@@ -54,17 +55,16 @@ object PGA {
         }
       }
     }
-    
+
     override def toString = s"Program[${toCompactString}]"
-    
+
     // Prepends a program to this program.
     def prepend(program: Program): Program = program match {
       case Primitive(_) | Repetition(_) => Concatenation(program, this)
       case Concatenation(start, after) => Concatenation(start, prepend(after))
     }
-    
+
     // Computes a first canonical form of this program.
-    // TODO: Test!
     lazy val firstCanonicalFrom: Program = this match {
       case Primitive(_) => this
       case Concatenation(start, after) => {
@@ -92,8 +92,36 @@ object PGA {
         }
       }
     }
+
+    // Computes the minimal first canonical from of this program.
+    lazy val minimalFirstCanonicalFrom: Program = {
+      // Extracts the largest prefix of a that is a prefix of b*.
+      // Does not let a become the empty list.
+      def cycleFactor[A](a: List[A], b: List[A]): (List[A], List[A]) =
+        (a, b) match {
+          case ((a :: as), (b :: bs)) if (a == b && as.nonEmpty) =>
+            cycleFactor(as, bs ++ List(b))
+          case _ => (a, b)
+        }
+
+      firstCanonicalFrom match {
+        case Concatenation(a, Repetition(b)) => {
+          def toList(a: Program): List[Program] = a match {
+            case Concatenation(head, tail) => head :: toList(tail)
+            case last @ _ => List(last)
+          }
+          val alr: List[Program] = toList(a).reverse
+          val blr: List[Program] = toList(b).reverse
+          val (nalr, nblr) = cycleFactor(alr, blr)
+          val ar = Concatenation.fromList(nalr.reverse)
+          val br = Concatenation.fromList(nblr.reverse)
+          Concatenation(ar, Repetition(br))
+        }
+        case finite @ _ => finite
+      }
+    }
   }
-  
+
   object Program {
     case class Primitive(instruction: Instruction) extends Program
 
@@ -114,7 +142,7 @@ object PGA {
   object Parsers extends JavaTokenParsers {
     import Instruction._
     import Program._
-    
+
     def label: Parser[Label] = ident
 
     def basic: Parser[Basic] = label map Basic

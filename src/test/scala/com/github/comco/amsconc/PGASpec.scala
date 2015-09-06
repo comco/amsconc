@@ -122,4 +122,25 @@ class PGASpec extends FlatSpec with Matchers {
     
     expectFirstCanonicalForm("a;(b;c)*;(d;e*)*", "(a;b);(c;b)*")
   }
+  
+  it should "support minimal firstCanonicalForm" in {
+    def expectMinimalFirstCanonicalForm(original: String, canonical: String) {
+      val program = parseProgram(original)
+      program.minimalFirstCanonicalFrom shouldEqual parseProgram(canonical)
+    }
+    
+    expectMinimalFirstCanonicalForm("a", "a")
+    
+    expectMinimalFirstCanonicalForm("a;+b;-c", "a;+b;-c")
+    
+    expectMinimalFirstCanonicalForm("a*", "a;a*")
+    
+    expectMinimalFirstCanonicalForm("a;b;c;(a;b;c)*", "a;(b;c;a)*")
+    
+    expectMinimalFirstCanonicalForm("(a;b);b*", "a;b*")
+    
+    expectMinimalFirstCanonicalForm("(#0;#1)*", "#0;(#1;#0)*")
+    
+    expectMinimalFirstCanonicalForm("-c;+a;(+b;#2;c;+a)*;c;a*", "-c;(+a;+b;#2;c)*")
+  }
 }
