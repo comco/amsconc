@@ -9,23 +9,25 @@ import org.scalatest.Matchers
 class PGASpec extends FlatSpec with Matchers {
   import PGA._
 
-  "An Instruction" should "parse" in {
-    def parseInstruction(instruction: String) =
-      Parsers.parse(Parsers.instruction, instruction).get
-
-    parseInstruction("a") shouldEqual Instruction.Basic("a")
-
-    parseInstruction("!") shouldEqual Instruction.Termination
-
-    parseInstruction("+a") shouldEqual Instruction.PositiveTest("a")
-
-    parseInstruction("-a") shouldEqual Instruction.NegativeTest("a")
-
-    parseInstruction("#0") shouldEqual Instruction.Jump(0)
-  }
+  def parseInstruction(instruction: String) =
+    Parsers.parse(Parsers.instruction, instruction).get
 
   def parseProgram(program: String) =
     Parsers.parse(Parsers.program, program).get
+
+  "An Instruction" should "parse" in {
+    import Instruction._ 
+
+    parseInstruction("a") shouldEqual Basic("a")
+
+    parseInstruction("!") shouldEqual Termination
+
+    parseInstruction("+a") shouldEqual PositiveTest("a")
+
+    parseInstruction("-a") shouldEqual NegativeTest("a")
+
+    parseInstruction("#0") shouldEqual Jump(0)
+  }
 
   "A Program" should "parse" in {
     import Instruction._
@@ -82,5 +84,42 @@ class PGASpec extends FlatSpec with Matchers {
     expectCompacted("!;#2;#1*", "!;#2;#1*")
     
     expectCompacted("!**;!*;(a;-b)**", ("!**;!*;(a;-b)**"))
+  }
+  
+  it should "support prepend" in {
+    def expectPrepend(a: String, b: String, c: String) {
+      parseProgram(a).prepend(parseProgram(b)) shouldEqual parseProgram(c)
+    }
+    
+    expectPrepend("b", "a", "a;b")
+    
+    expectPrepend("c;d", "a;b", "a;b;c;d")
+  }
+  
+  it should "support firstCanonicalForm" in {
+    def expectFirstCanonicalForm(original: String, canonical: String) {
+      val program = parseProgram(original)
+      program.firstCanonicalFrom shouldEqual parseProgram(canonical)
+    }
+    
+    expectFirstCanonicalForm("a", "a")
+    
+    expectFirstCanonicalForm("a;!", "a;!")
+    
+    expectFirstCanonicalForm("a;b;c", "a;b;c")
+    
+    expectFirstCanonicalForm("(a;b);c", "a;b;c")
+    
+    expectFirstCanonicalForm("a*", "a;a*")
+    
+    expectFirstCanonicalForm("a;b*", "(a;b);b*")
+    
+    expectFirstCanonicalForm("a**", "a;a*")
+    
+    expectFirstCanonicalForm("(a;b;c)*", "a;(b;c;a)*")
+    
+    expectFirstCanonicalForm("(a;b*)*", "(a;b);b*")
+    
+    expectFirstCanonicalForm("a;(b;c)*;(d;e*)*", "(a;b);(c;b)*")
   }
 }

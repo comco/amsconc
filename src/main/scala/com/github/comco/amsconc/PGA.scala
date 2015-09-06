@@ -5,7 +5,6 @@ import scala.util.parsing.combinator._
 /**
  * TODO:
  * - equivalence
- * - normal forms
  * - thread interpretation
  * - dsl
  * @author comco
@@ -40,11 +39,11 @@ object PGA {
     // parenthesis.
     lazy val toCompactString: String = this match {
       case Primitive(instruction) => instruction.toCompactString
-      case Concatenation(first, second) => {
-        val (f, s) = (first.toCompactString, second.toCompactString)
-        (first, second) match {
-          case (Concatenation(_, _), _) => s"($f);$s"
-          case _ => s"$f;$s"
+      case Concatenation(start, after) => {
+        val (s, a) = (start.toCompactString, after.toCompactString)
+        (start, after) match {
+          case (Concatenation(_, _), _) => s"($s);$a"
+          case _ => s"$s;$a"
         }
       }
       case Repetition(body) => {
@@ -55,7 +54,46 @@ object PGA {
         }
       }
     }
+    
+    override def toString = s"Program[${toCompactString}]"
+    
+    // Prepends a program to this program.
+    def prepend(program: Program): Program = program match {
+      case Primitive(_) | Repetition(_) => Concatenation(program, this)
+      case Concatenation(start, after) => Concatenation(start, prepend(after))
+    }
+    
+    // Computes a first canonical form of this program.
+    // TODO: Test!
+    lazy val firstCanonicalFrom: Program = this match {
+      case Primitive(_) => this
+      case Concatenation(start, after) => {
+        val firstCanonical = start.firstCanonicalFrom
+        firstCanonical match {
+          case Concatenation(a, Repetition(b)) => firstCanonical
+          case _ => {
+            val secondCanonical = after.firstCanonicalFrom
+            secondCanonical match {
+              case Concatenation(a, Repetition(b)) =>
+                Concatenation(a.prepend(firstCanonical), Repetition(b))
+              case _ =>
+                secondCanonical.prepend(firstCanonical)
+            }
+          }
+        }
+      }
+      case Repetition(body) => {
+        val bodyCanonical = body.firstCanonicalFrom
+        bodyCanonical match {
+          case Concatenation(a, Repetition(b)) => bodyCanonical
+          case Concatenation(start, after) =>
+            Concatenation(start, Repetition(start.prepend(after)))
+          case _ => Concatenation(bodyCanonical, Repetition(bodyCanonical))
+        }
+      }
+    }
   }
+  
   object Program {
     case class Primitive(instruction: Instruction) extends Program
 
@@ -74,36 +112,39 @@ object PGA {
   }
 
   object Parsers extends JavaTokenParsers {
+    import Instruction._
+    import Program._
+    
     def label: Parser[Label] = ident
 
-    def basic: Parser[Instruction.Basic] = label map Instruction.Basic
+    def basic: Parser[Basic] = label map Basic
 
-    def termination: Parser[Instruction.Termination.type] =
-      "!" ^^ Function.const(Instruction.Termination)
+    def termination: Parser[Termination.type] =
+      "!" ^^ Function.const(Termination)
 
-    def positiveTest: Parser[Instruction.PositiveTest] =
-      ("+" ~> label) map Instruction.PositiveTest
+    def positiveTest: Parser[PositiveTest] =
+      ("+" ~> label) map PositiveTest
 
-    def negativeTest: Parser[Instruction.NegativeTest] =
-      ("-" ~> label) map Instruction.NegativeTest
+    def negativeTest: Parser[NegativeTest] =
+      ("-" ~> label) map NegativeTest
 
     def steps: Parser[Int] = wholeNumber map (_.toInt)
 
-    def jump: Parser[Instruction.Jump] = ("#" ~> steps) map Instruction.Jump
+    def jump: Parser[Jump] = ("#" ~> steps) map Jump
 
     def instruction: Parser[Instruction] =
       basic | termination | positiveTest | negativeTest | jump
 
-    def primitive: Parser[Program.Primitive] = instruction map Program.Primitive
+    def primitive: Parser[Primitive] = instruction map Primitive
 
     def atomic: Parser[Program] = primitive | "(" ~> program <~ ")"
 
     def repetition: Parser[Program] = (atomic ~ rep("*")) ^^ {
-      case a ~ list => list.foldLeft(a) { (a, _) => Program.Repetition(a) }
+      case a ~ list => list.foldLeft(a) { (a, _) => Repetition(a) }
     }
 
     def concatenation: Parser[Program] =
-      rep1sep(repetition, ";") map Program.Concatenation.fromList
+      rep1sep(repetition, ";") map Concatenation.fromList
 
     def program: Parser[Program] = concatenation
   }
