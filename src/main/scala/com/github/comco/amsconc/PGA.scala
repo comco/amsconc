@@ -4,9 +4,7 @@ import scala.util.parsing.combinator._
 
 /**
  * TODO:
- * - equivalence
  * - thread interpretation
- * - dsl
  * @author comco
  */
 object PGA {
@@ -104,6 +102,18 @@ object PGA {
           case _ => (a, b)
         }
 
+      // Finds the smallest possible cycle generator of a list.
+      def cycleReduce[A](a: List[A]): List[A] = {
+        for (init <- a.inits.toList.reverse) {
+          if (init.nonEmpty &&
+              a.length % init.length == 0 &&
+              a == List.fill(a.length / init.length)(init).flatten.toList) {
+            return init
+          }
+        }
+        return a
+      }
+
       firstCanonicalFrom match {
         case Concatenation(a, Repetition(b)) => {
           def toList(a: Program): List[Program] = a match {
@@ -111,7 +121,8 @@ object PGA {
             case last @ _ => List(last)
           }
           val alr: List[Program] = toList(a).reverse
-          val blr: List[Program] = toList(b).reverse
+          val blr: List[Program] = cycleReduce(toList(b).reverse)
+          println("blr:", blr)
           val (nalr, nblr) = cycleFactor(alr, blr)
           val ar = Concatenation.fromList(nalr.reverse)
           val br = Concatenation.fromList(nblr.reverse)
@@ -120,6 +131,10 @@ object PGA {
         case finite @ _ => finite
       }
     }
+    
+    // Computes if this program is instruction sequence congruent to 'other'.
+    def instructionSequenceCongruent(other: Program): Boolean =
+      minimalFirstCanonicalFrom == other.minimalFirstCanonicalFrom
   }
 
   object Program {
