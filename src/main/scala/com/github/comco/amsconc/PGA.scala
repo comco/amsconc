@@ -1,6 +1,5 @@
 package com.github.comco.amsconc
 
-import scala.util.parsing.combinator._
 
 /**
  * TODO:
@@ -154,6 +153,7 @@ object PGA {
     case class Repetition(body: Program) extends Program
   }
 
+  import scala.util.parsing.combinator._
   object Parsers extends JavaTokenParsers {
     import Instruction._
     import Program._
