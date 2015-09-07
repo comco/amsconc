@@ -8,7 +8,7 @@ import org.scalatest.Matchers
  */
 class PGASpec extends FlatSpec with Matchers {
   import PGA._
-  
+
   "An Instruction" should "parse" in {
     import Instruction._
 
@@ -136,9 +136,9 @@ class PGASpec extends FlatSpec with Matchers {
     expectMinimalFirstCanonicalForm("(#0;#1)*", "#0;(#1;#0)*")
 
     expectMinimalFirstCanonicalForm("-c;+a;(+b;#2;c;+a)*;c;a*", "-c;(+a;+b;#2;c)*")
-    
+
     expectMinimalFirstCanonicalForm("(a;a)*", "a;a*")
-    
+
     expectMinimalFirstCanonicalForm("a;b;c;(a;b;(c;a;b;c;a;b)*)*", "a;(b;c;a)*")
   }
 
@@ -148,51 +148,82 @@ class PGASpec extends FlatSpec with Matchers {
       val programB = parseProgram(b)
       programA.instructionSequenceCongruent(programB) shouldEqual are
     }
-    
+
     expectInstructionSequenceCongruent("a", "a", true)
-    
+
     expectInstructionSequenceCongruent("a", "a*", false)
-    
+
     expectInstructionSequenceCongruent("a;b;a;(b;a)*;!", "a;b;(a;b)*", true)
-    
+
     expectInstructionSequenceCongruent("(a;a)*", "a;a*", true)
   }
-  
+
   it should "support behavior extraction of programs without repetition" in {
     object NoRepetitionExtractor extends PGA.BehaviorExtractor {
       override def extractRepetition(body: Program): ThreadAlgebra.Term = ???
     }
-    
+
     def expectExtracted(program: String, behavior: String) {
       val prog = parseProgram(program)
       val term = ThreadAlgebra.parseTerm(behavior)
       NoRepetitionExtractor.extract(prog) shouldEqual term
     }
-    
+
     expectExtracted("a", "a.D")
-    
+
     expectExtracted("!", "S")
-    
+
     expectExtracted("#0", "D")
-    
+
     expectExtracted("#1", "D")
-    
+
     expectExtracted("a;b", "a.b.D")
-    
+
     expectExtracted("a;!;b", "a.S")
-    
+
     expectExtracted("a;(!;b)", "a.S")
-    
+
     expectExtracted("+a;b;c", "b.c.D < a > c.D")
-    
+
     expectExtracted("a;#1;!;c", "a.S")
-    
+
     expectExtracted("a;#2;!;c", "a.c.D")
-    
+
     expectExtracted("a;#0;!;c", "a.D")
-    
+
     expectExtracted("#1;#1;#1;a", "a.D")
-    
+
     expectExtracted("(-a;b);c", "c.D < a > b.c.D")
+  }
+
+  it should "support full behavior extraction" in {
+    val extractor = new BehaviorExtractorWithLazyContext
+
+    import ThreadAlgebra._
+
+    def expectExtracted(program: String, behavior: String) {
+      println("expectExtracted ", program, " ", behavior)
+      val prog = parseProgram(program)
+      val term = parseTerm(behavior)
+      extractor.extract(prog) shouldEqual term
+    }
+
+    // TODO: Make this more compact: a.'[b*] instead of a.b.'b*
+    expectExtracted("a;b*", "a.b.'[b*]")
+
+    expectExtracted("a", "a.D")
+
+    expectExtracted("a*", "a.'[a*]")
+
+    // Tells you that P = |(a;b)*| = a.b.P
+    expectExtracted("(a;b)*", "a.b.'[(a;b)*]")
+
+    extractor.get(parseProgram("b*")) shouldEqual parseTerm("b.'[b*]")
+
+    expectExtracted("(+a;b;c)*", "b.c.'[(+a;b;c)*] < a > c.'[(+a;b;c)*]")
+
+    // TODO: This is incorrect, b shouldn't be able to skip c*.
+    // Also, shrink the c-s.
+    expectExtracted("+a;-b;c*;!", "(S < b > c.c.'[c*]) < a > c.'[c*]")
   }
 }

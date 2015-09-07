@@ -1,6 +1,6 @@
 package com.github.comco.amsconc
 
-import sun.org.mozilla.javascript.ast.ParseProblem
+import scala.collection.parallel.immutable.Repetition
 
 object PGA {
   type Label = String
@@ -117,7 +117,6 @@ object PGA {
           }
           val alr: List[Program] = toList(a).reverse
           val blr: List[Program] = cycleReduce(toList(b).reverse)
-          println("blr:", blr)
           val (nalr, nblr) = cycleFactor(alr, blr)
           val ar = Concatenation.fromList(nalr.reverse)
           val br = Concatenation.fromList(nblr.reverse)
@@ -194,6 +193,48 @@ object PGA {
       }
 
     def extractRepetition(body: Program): ThreadAlgebra.Term
+  }
+  
+  class BehaviorExtractorWithLazyContext extends BehaviorExtractor {
+    type LazyTerm = () => ThreadAlgebra.Term
+    
+    // Checks if 'program' has an associated behavior in this context.
+    def contains(program: Program): Boolean =
+      behaviors.contains(program.toCompactString)
+   
+    // Returns the behavior associated with this program.
+    def get(program: Program): ThreadAlgebra.Term =
+      behaviors(program.toCompactString)()
+    
+    // Associates the behavior 'term' with 'program'.
+    def add(program: Program, term: LazyTerm): Unit = {
+      behaviors += ((program.toCompactString, term))
+    }
+    
+    private var behaviors: Map[String, LazyTerm] = Map.empty
+    
+    // Extracts the behavior of this term.
+    override def extract(program: Program): ThreadAlgebra.Term = {
+      //println("> ext:", program)
+      if (!contains(program)) {
+        add(program, () => super.extract(program))
+      } else if (program.isInstanceOf[Program.Repetition]) {
+        // If this is the second occurrence of a repetition, make it a variable
+        // instead.
+        return ThreadAlgebra.Term.Variable(program.toCompactString)
+      }
+      //println("> ret(", program, "): ", get(program))
+      return get(program)
+    }
+    
+    override def extractRepetition(body: Program): ThreadAlgebra.Term = {
+      // TODO: This is imprecise, as it does NOT take into account jumps outside
+      // repetition boundaries.
+      import Program._
+      val v = super.extract(Repetition(body).prepend(body))
+      add(body, () => v)
+      get(body)
+    }
   }
 
   import scala.util.parsing.combinator._

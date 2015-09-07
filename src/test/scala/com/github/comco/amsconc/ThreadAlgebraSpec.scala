@@ -41,5 +41,8 @@ class ThreadAlgebraSpec extends FlatSpec with Matchers {
         PostconditionalComposition("c",
           Variable("x"),
           ActionPrefix("d", Variable("y"))))
+    
+    parseTerm("a.'[a;b;!]") shouldEqual
+      ActionPrefix("a", Variable("a;b;!"))
   }
 }

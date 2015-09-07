@@ -48,7 +48,7 @@ object ThreadAlgebra {
   }
 
   import scala.util.parsing.combinator._
-  object Parsers extends JavaTokenParsers {
+  object Parsers extends JavaTokenParsers with RegexParsers {
     import Term._
 
     def action: Parser[Label] = ident
@@ -61,7 +61,8 @@ object ThreadAlgebra {
       case a ~ _ ~ t => ActionPrefix(a, t)
     }
 
-    def variable: Parser[Variable] = ("'" ~> ident) map Variable
+    def variable: Parser[Variable] =
+      (("'" ~> ident) | ("'[" ~> """[^\]]+""".r <~ "]")) map Variable
 
     def atomic: Parser[Term] =
       variable | termination | deadlock | actionPrefix | "(" ~> term <~ ")"
