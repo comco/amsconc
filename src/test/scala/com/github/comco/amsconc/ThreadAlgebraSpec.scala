@@ -9,9 +9,6 @@ import org.scalatest.Matchers
 class ThreadAlgebraSpec extends FlatSpec with Matchers {
   import ThreadAlgebra._
 
-  def parseTerm(term: String) =
-    Parsers.parse(Parsers.term, term).get
-
   "A ThreadAlgebra Term" should "parse" in {
     import Term._
 

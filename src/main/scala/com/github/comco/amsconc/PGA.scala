@@ -1,11 +1,7 @@
 package com.github.comco.amsconc
 
+import sun.org.mozilla.javascript.ast.ParseProblem
 
-/**
- * TODO:
- * - thread interpretation
- * @author comco
- */
 object PGA {
   type Label = String
 
@@ -105,8 +101,8 @@ object PGA {
       def cycleReduce[A](a: List[A]): List[A] = {
         for (init <- a.inits.toList.reverse) {
           if (init.nonEmpty &&
-              a.length % init.length == 0 &&
-              a == List.fill(a.length / init.length)(init).flatten.toList) {
+            a.length % init.length == 0 &&
+            a == List.fill(a.length / init.length)(init).flatten.toList) {
             return init
           }
         }
@@ -130,7 +126,7 @@ object PGA {
         case finite @ _ => finite
       }
     }
-    
+
     // Computes if this program is instruction sequence congruent to 'other'.
     def instructionSequenceCongruent(other: Program): Boolean =
       minimalFirstCanonicalFrom == other.minimalFirstCanonicalFrom
@@ -151,6 +147,53 @@ object PGA {
       }
     }
     case class Repetition(body: Program) extends Program
+  }
+
+  abstract class BehaviorExtractor {
+    import Program._
+    import Instruction._
+    import ThreadAlgebra.Term
+    import ThreadAlgebra.Term._
+
+    // Skips the first instruction in 'program'.
+    def skipFirst(program: Program) = Concatenation(Primitive(Jump(2)), program)
+
+    def extract(program: Program): ThreadAlgebra.Term =
+      program match {
+        case Primitive(Instruction.Termination) => Term.Termination
+        case Primitive(Basic(a)) => ActionPrefix(a, Term.Deadlock)
+        case Primitive(PositiveTest(a)) => ActionPrefix(a, Term.Deadlock)
+        case Primitive(NegativeTest(a)) => ActionPrefix(a, Term.Deadlock)
+        case Primitive(Jump(_)) => Term.Deadlock
+        case Concatenation(Primitive(Instruction.Termination), _) =>
+          Term.Termination
+        case Concatenation(Primitive(Basic(a)), b) =>
+          ActionPrefix(a, extract(b))
+        case Concatenation(Primitive(PositiveTest(a)), b) =>
+          PostconditionalComposition(a,
+            extract(b),
+            extract(skipFirst(b)))
+        case Concatenation(Primitive(NegativeTest(a)), b) =>
+          PostconditionalComposition(a,
+            extract(skipFirst(b)),
+            extract(b))
+        case Concatenation(Primitive(Jump(0)), _) => Term.Deadlock
+        case Concatenation(Primitive(Jump(1)), a) => extract(a)
+        case Concatenation(Primitive(Jump(n)), a) => {
+          assert(n >= 2)
+          a match {
+            case Concatenation(head, tail) =>
+              extract(Concatenation(Primitive(Jump(n - 1)), tail))
+            case _ => Term.Deadlock
+          }
+        }
+        case Repetition(body) => extractRepetition(body)
+        case Concatenation(Concatenation(a, b), c) =>
+          extract(Concatenation(a, Concatenation(b, c)))
+        case Concatenation(Repetition(body), _) => extractRepetition(body)
+      }
+
+    def extractRepetition(body: Program): ThreadAlgebra.Term
   }
 
   import scala.util.parsing.combinator._
@@ -191,4 +234,10 @@ object PGA {
 
     def program: Parser[Program] = concatenation
   }
+
+  def parseInstruction(instruction: String): Instruction =
+    Parsers.parse(Parsers.instruction, instruction).get
+
+  def parseProgram(program: String): Program =
+    Parsers.parse(Parsers.program, program).get
 }

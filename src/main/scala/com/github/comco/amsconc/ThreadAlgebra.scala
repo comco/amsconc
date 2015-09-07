@@ -6,7 +6,30 @@ package com.github.comco.amsconc
 object ThreadAlgebra {
   type Label = String
 
-  sealed trait Term
+  sealed trait Term {
+    import Term._
+    
+    lazy val toAtomicCompactString: String = this match {
+      case Termination | Deadlock | Variable(_) | ActionPrefix(_, _) =>
+        toCompactString
+      case _ => "(" + toCompactString + ")"
+    }
+    
+    lazy val toCompactString: String = this match {
+      case Termination => "S"
+      case Deadlock => "D"
+      case Variable(name) => s"'$name"
+      case PostconditionalComposition(action, ifTrue, ifFalse) =>
+        val at = ifTrue.toAtomicCompactString
+        val af = ifFalse.toAtomicCompactString
+        s"$at < $action > $af"
+      case ActionPrefix(action, following) =>
+        val af = following.toAtomicCompactString
+        s"$action . $af"
+    }
+    
+    override def toString = toCompactString
+  }
 
   object Term {
     case object Termination extends Term
@@ -52,4 +75,6 @@ object ThreadAlgebra {
     def term: Parser[Term] =
       postconditionalComposition | atomic
   }
+  
+  def parseTerm(term: String): Term = Parsers.parse(Parsers.term, term).get
 }

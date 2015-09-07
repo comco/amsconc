@@ -8,13 +8,7 @@ import org.scalatest.Matchers
  */
 class PGASpec extends FlatSpec with Matchers {
   import PGA._
-
-  def parseInstruction(instruction: String) =
-    Parsers.parse(Parsers.instruction, instruction).get
-
-  def parseProgram(program: String) =
-    Parsers.parse(Parsers.program, program).get
-
+  
   "An Instruction" should "parse" in {
     import Instruction._
 
@@ -162,5 +156,43 @@ class PGASpec extends FlatSpec with Matchers {
     expectInstructionSequenceCongruent("a;b;a;(b;a)*;!", "a;b;(a;b)*", true)
     
     expectInstructionSequenceCongruent("(a;a)*", "a;a*", true)
+  }
+  
+  it should "support behavior extraction of programs without repetition" in {
+    object NoRepetitionExtractor extends PGA.BehaviorExtractor {
+      override def extractRepetition(body: Program): ThreadAlgebra.Term = ???
+    }
+    
+    def expectExtracted(program: String, behavior: String) {
+      val prog = parseProgram(program)
+      val term = ThreadAlgebra.parseTerm(behavior)
+      NoRepetitionExtractor.extract(prog) shouldEqual term
+    }
+    
+    expectExtracted("a", "a.D")
+    
+    expectExtracted("!", "S")
+    
+    expectExtracted("#0", "D")
+    
+    expectExtracted("#1", "D")
+    
+    expectExtracted("a;b", "a.b.D")
+    
+    expectExtracted("a;!;b", "a.S")
+    
+    expectExtracted("a;(!;b)", "a.S")
+    
+    expectExtracted("+a;b;c", "b.c.D < a > c.D")
+    
+    expectExtracted("a;#1;!;c", "a.S")
+    
+    expectExtracted("a;#2;!;c", "a.c.D")
+    
+    expectExtracted("a;#0;!;c", "a.D")
+    
+    expectExtracted("#1;#1;#1;a", "a.D")
+    
+    expectExtracted("(-a;b);c", "c.D < a > b.c.D")
   }
 }
