@@ -12,11 +12,12 @@ class PASpec extends FlatSpec with Matchers {
   import Instruction._
   import Program.DSL._
 
-  "A PA.Instrucion" should "disallow forward jumps by with negative number of steps" in {
-    an[IllegalArgumentException] should be thrownBy parseInstruction("#-1")
-  }
-  
-  "A PA.Program" should "parse" in {
+  "A PA.Instrucion" should
+    "disallow forward jumps by with negative number of steps" in {
+      an[IllegalArgumentException] should be thrownBy parseInstruction("#-1")
+    }
+
+  "A PA.Program" should "parse by #parseProgram" in {
     parseProgram("$") shouldEqual seq()
     parseProgram("a;$") shouldEqual seq("a")
     parseProgram("+a;-b;c;!;#0;$") shouldEqual seq("+a", "-b", "c", "!", "#0")
@@ -25,7 +26,7 @@ class PASpec extends FlatSpec with Matchers {
     parseProgram("(a;(!;$)*)*") shouldEqual rep("a", rep("!"))
   }
 
-  it should "pretty print by toCompactString" in {
+  it should "pretty print by #toCompactString" in {
     def expectPrettyPrinted(programString: String) {
       val program = parseProgram(programString)
       program.toCompactString shouldEqual programString
@@ -38,7 +39,7 @@ class PASpec extends FlatSpec with Matchers {
     expectPrettyPrinted("a;(+b;c;$)*")
   }
 
-  it should "compute the instruction sequence by instructions" in {
+  it should "compute the instruction sequence by #instructions" in {
     val bound = 10
 
     def expectInstructionSequence(programString: String,
@@ -57,13 +58,15 @@ class PASpec extends FlatSpec with Matchers {
 
     expectInstructionSequence("$", seq())
     expectInstructionSequence("a;$", seq("a"))
-    expectInstructionSequence("+a;-b;c;#12;!;$", seq("+a", "-b", "c", "#12", "!"))
+    expectInstructionSequence("+a;-b;c;#12;!;$",
+      seq("+a", "-b", "c", "#12", "!"))
     expectInstructionSequence("$*", seq())
     expectInstructionSequence("$**", seq())
     expectInstructionSequence("(a;$)*", cycle("a"))
     expectInstructionSequence("(!;!;$)*", cycle("!"))
     expectInstructionSequence("(a;b;$)*", cycle("a", "b"))
-    expectInstructionSequence("#0;#1;(!;a;(b;$)*)*", seq("#0", "#1", "!", "a") ++ cycleOff(3, "b"))
+    expectInstructionSequence("#0;#1;(!;a;(b;$)*)*",
+      seq("#0", "#1", "!", "a") ++ cycleOff(4, "b"))
   }
 
   it should "support extracting first instruction" in {
@@ -87,7 +90,7 @@ class PASpec extends FlatSpec with Matchers {
     expectFirst("(#0;-a;#5;b;$)*", "#0", "(-a;#5;b;#0;$)*")
     expectFirst("(a;$)**", "a", "(a;$)*")
   }
-  
+
   it should "support cyclic reduction" in {
     def expectCyclicReduction(a: String, b: String) {
       parseProgram(a).cyclicReduction shouldEqual parseProgram(b)

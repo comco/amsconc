@@ -11,7 +11,7 @@ object PA {
 
   sealed trait Instruction {
     import Instruction._
-    
+
     lazy val toCompactString: String = this match {
       case Termination() => "!"
       case Basic(label) => label
@@ -20,7 +20,7 @@ object PA {
       case ForwardJump(by) => s"#$by"
     }
   }
-  
+
   object Instruction {
     case class Termination() extends Instruction
 
@@ -68,19 +68,19 @@ object PA {
         case body @ Repetition(_) => body.extractFirst
       }
     }
-    
+
     // Finds the smallest possible cycle generator of a list.
-      def cycleReduce[A](a: List[A]): List[A] = {
-        for (init <- a.inits.toList.reverse) {
-          if (init.nonEmpty &&
-            a.length % init.length == 0 &&
-            a == List.fill(a.length / init.length)(init).flatten.toList) {
-            return init
-          }
+    def cycleReduce[A](a: List[A]): List[A] = {
+      for (init <- a.inits.toList.reverse) {
+        if (init.nonEmpty &&
+          a.length % init.length == 0 &&
+          a == List.fill(a.length / init.length)(init).flatten.toList) {
+          return init
         }
-        return a
       }
-    
+      return a
+    }
+
     // Reduces programs rep(a,b,a,b) -> rep(a,b).
     lazy val cyclicReduction: Program = this match {
       case Repetition(body) => {
@@ -108,15 +108,16 @@ object PA {
         case _ => false
       }
     }
-    
+
     lazy val toAtomicCompactString: String = this match {
       case Empty() | Repetition(_) => toCompactString
       case _ => s"($toCompactString)"
     }
-    
+
     lazy val toCompactString: String = this match {
       case Empty() => "$"
-      case Sequence(first, next) => s"${first.toCompactString};${next.toCompactString}"
+      case Sequence(first, next) =>
+        s"${first.toCompactString};${next.toCompactString}"
       case Repetition(body) => s"${body.toAtomicCompactString}*"
     }
   }
@@ -133,15 +134,15 @@ object PA {
         case List() => Empty()
         case first :: next => Sequence(first, seq(next: _*))
       }
-      
+
       def seq(first: Instruction, next: Program): Program =
         Sequence(first, next)
 
       def rep(body: Program) = Repetition(body)
-      
+
       def rep(instructions: Instruction*) =
         Repetition(seq(instructions: _*))
-        
+
       def rep(first: Instruction, next: Program) =
         Repetition(Sequence(first, next))
 
@@ -167,7 +168,8 @@ object PA {
 
     def forwardJumpStep: Parser[Int] = wholeNumber map (_.toInt)
 
-    def forwardJump: Parser[ForwardJump] = ("#" ~> forwardJumpStep) map ForwardJump
+    def forwardJump: Parser[ForwardJump] =
+      ("#" ~> forwardJumpStep) map ForwardJump
 
     def instruction: Parser[Instruction] =
       termination | basic | positiveTest | negativeTest | forwardJump
