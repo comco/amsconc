@@ -21,6 +21,7 @@ class PASpec extends FlatSpec with Matchers {
     parseProgram("$") shouldEqual seq()
     parseProgram("a;$") shouldEqual seq("a")
     parseProgram("+a;-b;c;!;#0;$") shouldEqual seq("+a", "-b", "c", "!", "#0")
+    parseProgram("+a;(b;$)*") shouldEqual seq("+a", rep("b"))
     parseProgram("$*") shouldEqual rep()
     parseProgram("(a;$*)**") shouldEqual rep(rep("a", rep()))
     parseProgram("(a;(!;$)*)*") shouldEqual rep("a", rep("!"))
@@ -117,5 +118,36 @@ class PASpec extends FlatSpec with Matchers {
     expectInstructionSequenceCongruent("a;b;(c;a;b;$)*", "(a;b;c;$)*", true)
     expectInstructionSequenceCongruent("(a;b;a;b;$)*", "(a;b;$)*", true)
     expectInstructionSequenceCongruent("a;b;(a;(b;a;$)*)*", "(a;b;$)*", true)
+  }
+  
+  "A PA.BehaviorExtractor" should "extract program behavior by #extract" in {
+    val extractor = new BehaviorExtractor
+    
+    def expectExtracted(programString: String, behaviorString: String) {
+      val program = parseProgram(programString)
+      val behavior = ThreadAlgebra.parseBehavior(behaviorString)
+      extractor.extract(program) shouldEqual behavior
+    }
+    
+    expectExtracted("$", "D")
+    expectExtracted("a;$", "a.[$]")
+    expectExtracted("(a;$)*", "a.[(a;$)*]")
+    expectExtracted("(b;c;b;c;$)*", "b.[(c;b;c;b;$)*]")
+    expectExtracted("(c;b;c;b;$)*", "c.[(b;c;b;c;$)*]")
+    expectExtracted("#0;$", "D")
+    expectExtracted("#1;$", "D")
+    expectExtracted("#2;$", "D")
+    expectExtracted("#3;$", "D")
+    expectExtracted("#0;a;$", "D")
+    expectExtracted("#1;a;$", "a.[$]")
+    expectExtracted("#2;a;$", "D")
+    expectExtracted("#10;(a;$)*", "a.[(a;$)*]")
+    expectExtracted("(#0;#1;$)*", "D")
+    // Larger example with subexpressions
+    expectExtracted("-c;+a;(+b;#2;c;+a;$)*", "[#2;+a;(+b;#2;c;+a;$)*] < c > [+a;(+b;#2;c;+a;$)*]")
+    expectExtracted("#2;+a;(+b;#2;c;+a;$)*", "[(#2;c;+a;+b;$)*] < b > [#2;(#2;c;+a;+b;$)*]")
+    expectExtracted("(#2;c;+a;+b;$)*", "[(+b;#2;c;+a;$)*] < a > [#2;(+b;#2;c;+a;$)*]")
+    expectExtracted("(+b;#2;c;+a;$)*", "[(#2;c;+a;+b;$)*] < b > [#2;(#2;c;+a;+b;$)*]")
+    
   }
 }

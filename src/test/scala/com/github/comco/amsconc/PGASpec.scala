@@ -160,13 +160,13 @@ class PGASpec extends FlatSpec with Matchers {
 
   it should "support behavior extraction of programs without repetition" in {
     object NoRepetitionExtractor extends PGA.BehaviorExtractor {
-      override def extractRepetition(body: Program): ThreadAlgebra.Term = ???
+      override def extractRepetition(body: Program): ThreadAlgebra.Behavior = ???
     }
 
-    def expectExtracted(program: String, behavior: String) {
-      val prog = parseProgram(program)
-      val term = ThreadAlgebra.parseTerm(behavior)
-      NoRepetitionExtractor.extract(prog) shouldEqual term
+    def expectExtracted(programString: String, behaviorString: String) {
+      val program = parseProgram(programString)
+      val behavior = ThreadAlgebra.parseBehavior(behaviorString)
+      NoRepetitionExtractor.extract(program) shouldEqual behavior
     }
 
     expectExtracted("a", "a.D")
@@ -194,36 +194,5 @@ class PGASpec extends FlatSpec with Matchers {
     expectExtracted("#1;#1;#1;a", "a.D")
 
     expectExtracted("(-a;b);c", "c.D < a > b.c.D")
-  }
-
-  it should "support full behavior extraction" in {
-    val extractor = new BehaviorExtractorWithLazyContext
-
-    import ThreadAlgebra._
-
-    def expectExtracted(program: String, behavior: String) {
-      println("expectExtracted ", program, " ", behavior)
-      val prog = parseProgram(program)
-      val term = parseTerm(behavior)
-      extractor.extract(prog) shouldEqual term
-    }
-
-    // TODO: Make this more compact: a.'[b*] instead of a.b.'b*
-    expectExtracted("a;b*", "a.b.'[b*]")
-
-    expectExtracted("a", "a.D")
-
-    expectExtracted("a*", "a.'[a*]")
-
-    // Tells you that P = |(a;b)*| = a.b.P
-    expectExtracted("(a;b)*", "a.b.'[(a;b)*]")
-
-    extractor.get(parseProgram("b*")) shouldEqual parseTerm("b.'[b*]")
-
-    expectExtracted("(+a;b;c)*", "b.c.'[(+a;b;c)*] < a > c.'[(+a;b;c)*]")
-
-    // TODO: This is incorrect, b shouldn't be able to skip c*.
-    // Also, shrink the c-s.
-    expectExtracted("+a;-b;c*;!", "(S < b > c.c.'[c*]) < a > c.'[c*]")
   }
 }

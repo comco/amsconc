@@ -6,19 +6,19 @@ package com.github.comco.amsconc
 object ThreadAlgebra {
   type Label = String
 
-  sealed trait Term {
-    import Term._
+  sealed trait Behavior {
+    import Behavior._
     
     lazy val toAtomicCompactString: String = this match {
-      case Termination | Deadlock | Variable(_) | ActionPrefix(_, _) =>
+      case Terminal() | Deadlock() | Variable(_) | ActionPrefix(_, _) =>
         toCompactString
       case _ => "(" + toCompactString + ")"
     }
     
     lazy val toCompactString: String = this match {
-      case Termination => "S"
-      case Deadlock => "D"
-      case Variable(name) => s"'$name"
+      case Terminal() => "S"
+      case Deadlock() => "D"
+      case Variable(name) => s"[$name]"
       case PostconditionalComposition(action, ifTrue, ifFalse) =>
         val at = ifTrue.toAtomicCompactString
         val af = ifFalse.toAtomicCompactString
@@ -31,41 +31,42 @@ object ThreadAlgebra {
     override def toString = toCompactString
   }
 
-  object Term {
-    case object Termination extends Term
+  object Behavior {
+    case class Terminal() extends Behavior
 
-    case object Deadlock extends Term
+    case class Deadlock() extends Behavior
 
     case class PostconditionalComposition(
-      action: Label, ifTrue: Term, ifFalse: Term)
-        extends Term
+      action: Label, ifTrue: Behavior, ifFalse: Behavior)
+        extends Behavior
+    
 
-    case class ActionPrefix(action: Label, following: Term) extends Term
+    case class ActionPrefix(action: Label, following: Behavior) extends Behavior
 
     // In order to model systems of behavior equations, we need to have
     // variable-like entities. These are looked up in a context.
-    case class Variable(name: String) extends Term
+    case class Variable(name: String) extends Behavior
   }
 
   import scala.util.parsing.combinator._
   object Parsers extends JavaTokenParsers with RegexParsers {
-    import Term._
+    import Behavior._
 
     def action: Parser[Label] = ident
 
-    def termination: Parser[Termination.type] = "S" ^^ { _ => Termination }
+    def terminal: Parser[Terminal] = "S" ^^ { _ => Terminal() }
 
-    def deadlock: Parser[Deadlock.type] = "D" ^^ { _ => Deadlock }
+    def deadlock: Parser[Deadlock] = "D" ^^ { _ => Deadlock() }
 
     def actionPrefix: Parser[ActionPrefix] = (action ~ "." ~ atomic) ^^ {
       case a ~ _ ~ t => ActionPrefix(a, t)
     }
 
     def variable: Parser[Variable] =
-      (("'" ~> ident) | ("'[" ~> """[^\]]+""".r <~ "]")) map Variable
+      ("[" ~> """[^\]]+""".r <~ "]") map Variable
 
-    def atomic: Parser[Term] =
-      variable | termination | deadlock | actionPrefix | "(" ~> term <~ ")"
+    def atomic: Parser[Behavior] =
+      variable | terminal | deadlock | actionPrefix | "(" ~> behavior <~ ")"
 
     def postconditionalComposition: Parser[PostconditionalComposition] =
       (atomic ~ "<" ~ action ~ ">" ~ atomic) ^^ {
@@ -73,9 +74,10 @@ object ThreadAlgebra {
           PostconditionalComposition(a, ifTrue, ifFalse)
       }
 
-    def term: Parser[Term] =
+    def behavior: Parser[Behavior] =
       postconditionalComposition | atomic
   }
   
-  def parseTerm(term: String): Term = Parsers.parse(Parsers.term, term).get
+  def parseBehavior(behavior: String): Behavior =
+    Parsers.parse(Parsers.behavior, behavior).get
 }

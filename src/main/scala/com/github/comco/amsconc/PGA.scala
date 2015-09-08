@@ -1,7 +1,5 @@
 package com.github.comco.amsconc
 
-import scala.collection.parallel.immutable.Repetition
-
 object PGA {
   type Label = String
 
@@ -149,23 +147,23 @@ object PGA {
   }
 
   abstract class BehaviorExtractor {
-    import Program._
     import Instruction._
-    import ThreadAlgebra.Term
-    import ThreadAlgebra.Term._
-
+    import Program._
+    import ThreadAlgebra.Behavior
+    import ThreadAlgebra.Behavior._
+    
     // Skips the first instruction in 'program'.
     def skipFirst(program: Program) = Concatenation(Primitive(Jump(2)), program)
 
-    def extract(program: Program): ThreadAlgebra.Term =
+    def extract(program: Program): Behavior =
       program match {
-        case Primitive(Instruction.Termination) => Term.Termination
-        case Primitive(Basic(a)) => ActionPrefix(a, Term.Deadlock)
-        case Primitive(PositiveTest(a)) => ActionPrefix(a, Term.Deadlock)
-        case Primitive(NegativeTest(a)) => ActionPrefix(a, Term.Deadlock)
-        case Primitive(Jump(_)) => Term.Deadlock
-        case Concatenation(Primitive(Instruction.Termination), _) =>
-          Term.Termination
+        case Primitive(Termination) => Terminal()
+        case Primitive(Basic(a)) => ActionPrefix(a, Deadlock())
+        case Primitive(PositiveTest(a)) => ActionPrefix(a, Deadlock())
+        case Primitive(NegativeTest(a)) => ActionPrefix(a, Deadlock())
+        case Primitive(Jump(_)) => Deadlock()
+        case Concatenation(Primitive(Termination), _) =>
+          Terminal()
         case Concatenation(Primitive(Basic(a)), b) =>
           ActionPrefix(a, extract(b))
         case Concatenation(Primitive(PositiveTest(a)), b) =>
@@ -176,14 +174,14 @@ object PGA {
           PostconditionalComposition(a,
             extract(skipFirst(b)),
             extract(b))
-        case Concatenation(Primitive(Jump(0)), _) => Term.Deadlock
+        case Concatenation(Primitive(Jump(0)), _) => Deadlock()
         case Concatenation(Primitive(Jump(1)), a) => extract(a)
         case Concatenation(Primitive(Jump(n)), a) => {
           assert(n >= 2)
           a match {
             case Concatenation(head, tail) =>
               extract(Concatenation(Primitive(Jump(n - 1)), tail))
-            case _ => Term.Deadlock
+            case _ => Deadlock()
           }
         }
         case Repetition(body) => extractRepetition(body)
@@ -192,18 +190,18 @@ object PGA {
         case Concatenation(Repetition(body), _) => extractRepetition(body)
       }
 
-    def extractRepetition(body: Program): ThreadAlgebra.Term
+    def extractRepetition(body: Program): ThreadAlgebra.Behavior
   }
   
   class BehaviorExtractorWithLazyContext extends BehaviorExtractor {
-    type LazyTerm = () => ThreadAlgebra.Term
+    type LazyTerm = () => ThreadAlgebra.Behavior
     
     // Checks if 'program' has an associated behavior in this context.
     def contains(program: Program): Boolean =
       behaviors.contains(program.toCompactString)
    
     // Returns the behavior associated with this program.
-    def get(program: Program): ThreadAlgebra.Term =
+    def get(program: Program): ThreadAlgebra.Behavior =
       behaviors(program.toCompactString)()
     
     // Associates the behavior 'term' with 'program'.
@@ -214,20 +212,20 @@ object PGA {
     private var behaviors: Map[String, LazyTerm] = Map.empty
     
     // Extracts the behavior of this term.
-    override def extract(program: Program): ThreadAlgebra.Term = {
+    override def extract(program: Program): ThreadAlgebra.Behavior = {
       //println("> ext:", program)
       if (!contains(program)) {
         add(program, () => super.extract(program))
       } else if (program.isInstanceOf[Program.Repetition]) {
         // If this is the second occurrence of a repetition, make it a variable
         // instead.
-        return ThreadAlgebra.Term.Variable(program.toCompactString)
+        return ThreadAlgebra.Behavior.Variable(program.toCompactString)
       }
       //println("> ret(", program, "): ", get(program))
       return get(program)
     }
     
-    override def extractRepetition(body: Program): ThreadAlgebra.Term = {
+    override def extractRepetition(body: Program): ThreadAlgebra.Behavior = {
       // TODO: This is imprecise, as it does NOT take into account jumps outside
       // repetition boundaries.
       import Program._

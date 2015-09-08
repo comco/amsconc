@@ -1,6 +1,8 @@
 package com.github.comco.amsconc
 
-import scala.collection.immutable.Stream.consWrapper
+import com.github.comco.amsconc.ThreadAlgebra.Behavior.Deadlock
+import com.github.comco.amsconc.ThreadAlgebra.Behavior.Terminal
+import com.github.comco.amsconc.ThreadAlgebra.Behavior.ActionPrefix
 
 /**
  * Definition of a simplified version of PGA.
@@ -57,6 +59,7 @@ object PA {
       }
     }
 
+    // Extracts the first instruction and the rest of this program, if it exists.
     lazy val extractFirst: Option[(Instruction, Program)] = this match {
       case Empty() => None
       case Sequence(first, next) => Some((first, next))
@@ -81,7 +84,7 @@ object PA {
       return a
     }
 
-    // Reduces programs rep(a,b,a,b) -> rep(a,b).
+    // Cyclically reduces programs: rep(a,b,a,b) -> rep(a,b).
     lazy val cyclicReduction: Program = this match {
       case Repetition(body) => {
         def linear(p: Program): Boolean = p match {
@@ -98,6 +101,7 @@ object PA {
       case _ => this
     }
 
+    // Computes instruction sequence congruence.
     def isInstructionSequenceCongruentTo(that: Program): Boolean = {
       if (this.cyclicReduction == that.cyclicReduction) true
       else (this.extractFirst, that.extractFirst) match {
@@ -149,6 +153,59 @@ object PA {
       implicit def ins(instruction: String): Instruction =
         parseInstruction(instruction)
     }
+  }
+  
+  class BehaviorExtractor {
+    import ThreadAlgebra._
+    import ThreadAlgebra.Behavior._
+    import Instruction._
+    import Program._
+    
+    def variable(program: Program) = Variable(program.toCompactString)
+    
+    def skipFirst(program: Program): Program = Sequence(ForwardJump(2), program)
+    
+    def extract(program: Program): Behavior = {
+      if (bounded.contains(program)) {
+        bounded(program)
+      } else if (visited.contains(program)) {
+        variable(program)
+      } else {
+        visited += program
+        val behavior = program.extractFirst match {
+          case Some((first, next)) => first match {
+            case Termination() => Terminal()
+            case Basic(label) => {
+              extract(next)
+              ActionPrefix(label, variable(next))
+            }
+            case PositiveTest(label) => {
+              extract(next)
+              extract(skipFirst(next))
+              PostconditionalComposition(label, variable(next), variable(skipFirst(next)))
+            }
+            case NegativeTest(label) => {
+              extract(skipFirst(next))
+              extract(next)
+              PostconditionalComposition(label, variable(skipFirst(next)), variable(next))
+            }
+            case ForwardJump(0) => Deadlock()
+            case ForwardJump(1) => extract(next)
+            case ForwardJump(n) => next.extractFirst match {
+              case Some((_, next2)) => extract(Sequence(ForwardJump(n - 1), next2))
+              case None => Deadlock()
+            }
+          }
+          case None => Deadlock()
+        }
+        bounded += ((program, behavior))
+        behavior
+      }
+    }
+    
+    var visited: Set[Program] = Set.empty
+    
+    var bounded: Map[Program, Behavior] = Map.empty
   }
 
   import scala.util.parsing.combinator._
